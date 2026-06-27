@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Din Coach</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #F7F4F0;
+    --card: #FFFFFF;
+    --aubergine: #4A2545;
+    --plum: #7B3F6E;
+    --gold: #C4964A;
+    --gold-light: #F0E0C0;
+    --cream: #FBF8F4;
+    --text: #1E1018;
+    --muted: #8A7880;
+    --border: #EAE2E8;
+    --green: #4A7C59;
+    --red: #9B3A3A;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: 80px;
+  }
+  button { font-family: inherit; cursor: pointer; }
+  input, textarea { font-family: inherit; }
+  ::-webkit-scrollbar { width: 0; }
+
+  /* HEADER */
+  .header {
+    background: var(--aubergine);
+    padding: 16px 20px 14px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-inner {
+    max-width: 480px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .header h1 { font-size: 18px; font-weight: 800; color: #fff; }
+  .header p { font-size: 12px; color: rgba(255,255,255,0.7); }
+  .header-badge {
+    background: rgba(255,255,255,0.15); border-radius: 20px;
+    padding: 4px 12px; font-size: 12px; color: #fff; font-weight: 600;
+  }
+
+  /* CONTENT */
+  .content { max-width: 480px; margin: 0 auto; padding: 16px 16px 20px; }
+
+  /* BOTTOM NAV */
+  .nav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--card); border-top: 1px solid var(--border);
+    display: flex; z-index: 100;
+  }
+  .nav-btn {
+    flex: 1; padding: 10px 4px 14px; background: none; border: none;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    color: var(--muted); transition: color 0.15s; font-size: 10px; font-weight: 500;
+  }
+  .nav-btn.active { color: var(--aubergine); font-weight: 800; }
+  .nav-btn span.icon { font-size: 20px; }
+  .nav-dot {
+    width: 4px; height: 4px; border-radius: 2px;
+    background: var(--aubergine); margin-top: 1px;
+  }
+
+  /* CARDS */
+  .card {
+    background: var(--card); border-radius: 18px;
+    border: 1px solid var(--border); padding: 20px; margin-bottom: 14px;
+  }
+  .card-title { font-size: 14px; font-weight: 800; color: var(--text); margin-bottom: 12px; }
+
+  /* BUTTONS */
+  .btn-primary {
+    width: 100%; padding: 15px; background: var(--aubergine);
+    color: #fff; border: none; border-radius: 16px;
+    font-weight: 800; font-size: 15px; transition: opacity 0.2s;
+  }
+  .btn-primary:active { opacity: 0.85; }
+  .btn-secondary {
+    padding: 10px 16px; background: transparent;
+    border: 1.5px solid var(--border); border-radius: 12px;
+    font-size: 13px; font-weight: 600; color: var(--muted);
+    transition: all 0.15s;
+  }
+
+  /* CHAT */
+  .chat-wrap {
+    display: flex; flex-direction: column;
+    height: calc(100vh - 160px);
+  }
+  .chat-messages { flex: 1; overflow-y: auto; padding-bottom: 12px; }
+  .msg {
+    margin-bottom: 12px;
+    display: flex;
+  }
+  .msg.user { justify-content: flex-end; }
+  .msg.assistant { justify-content: flex-start; }
+  .bubble {
+    max-width: 82%; padding: 12px 16px;
+    font-size: 14px; line-height: 1.65; white-space: pre-wrap;
+  }
+  .bubble.user {
+    background: var(--aubergine); color: #fff;
+    border-radius: 18px 18px 4px 18px;
+  }
+  .bubble.assistant {
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 18px 18px 18px 4px;
+  }
+  .chat-input-row {
+    display: flex; gap: 10px; padding-top: 10px;
+    border-top: 1px solid var(--border); background: var(--bg);
+  }
+  .chat-input {
+    flex: 1; padding: 12px 16px; border-radius: 24px;
+    border: 1.5px solid var(--border); font-size: 14px;
+    outline: none; background: var(--card); color: var(--text);
+  }
+  .chat-send {
+    width: 44px; height: 44px; border-radius: 22px;
+    background: var(--aubergine); border: none;
+    color: #fff; font-size: 18px; display: flex;
+    align-items: center; justify-content: center; flex-shrink: 0;
+    transition: background 0.2s;
+  }
+  .chat-send:disabled { background: var(--border); }
+
+  .typing-dots { display: flex; gap: 4px; padding: 12px 16px; }
+  .dot {
+    width: 8px; height: 8px; border-radius: 4px;
+    background: var(--muted); animation: bounce 1s infinite;
+  }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce {
+    0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+
+  /* SUGGESTIONS */
+  .suggestion {
+    width: 100%; padding: 12px 16px; background: var(--card);
+    border: 1.5px solid var(--border); border-radius: 14px;
+    text-align: left; font-size: 14px; color: var(--text);
+    font-weight: 500; margin-bottom: 8px; transition: all 0.15s;
+  }
+  .suggestion:active { border-color: var(--aubergine); background: var(--cream); }
+
+  /* WORKOUT */
+  .day-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  .day-btn {
+    background: var(--card); border: 2px solid var(--border);
+    border-radius: 16px; padding: 14px 16px; text-align: left;
+    transition: all 0.2s;
+  }
+  .day-btn.active { color: #fff; }
+  .day-btn .day-emoji { font-size: 22px; }
+  .day-btn .day-name { font-size: 13px; font-weight: 800; margin-top: 4px; }
+  .day-btn .day-focus { font-size: 12px; opacity: 0.75; }
+
+  .exercise-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden; margin-bottom: 8px;
+  }
+  .exercise-header {
+    width: 100%; padding: 14px 16px; background: none; border: none;
+    display: flex; justify-content: space-between; align-items: center;
+    text-align: left;
+  }
+  .exercise-num {
+    width: 28px; height: 28px; border-radius: 14px;
+    background: var(--gold-light); color: var(--gold);
+    font-size: 12px; font-weight: 800; display: flex;
+    align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .exercise-name { font-size: 14px; font-weight: 700; color: var(--text); }
+  .exercise-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .exercise-tip {
+    padding: 0 16px 14px; border-top: 1px solid var(--border);
+    padding-top: 12px; font-size: 13px; color: var(--aubergine); font-weight: 600;
+  }
+  .warning-box {
+    border-radius: 12px; padding: 10px 14px;
+    font-size: 13px; font-weight: 600; margin-bottom: 14px;
+    background: #FFF3CD; color: #856404; border: 1px solid #FFE69C;
+  }
+
+  /* FOOD */
+  .macro-badge {
+    text-align: center; background: var(--cream);
+    border-radius: 10px; padding: 6px 10px; min-width: 52px;
+  }
+  .macro-val { font-size: 13px; font-weight: 800; }
+  .macro-lbl { font-size: 10px; color: var(--muted); font-weight: 600; }
+  .meal-option-btn {
+    padding: 6px 12px; border-radius: 20px;
+    font-size: 12px; font-weight: 600; transition: all 0.15s;
+  }
+
+  /* CHECKIN */
+  .mood-btn {
+    width: 44px; height: 44px; border-radius: 22px;
+    border: 2px solid var(--border); background: transparent;
+    font-size: 22px; transition: all 0.15s;
+  }
+  .mood-btn.active { border-color: var(--aubergine); background: rgba(74,37,69,0.1); }
+  .trained-btn {
+    flex: 1; padding: 10px 0; border-radius: 12px;
+    border: 1.5px solid var(--border); background: transparent;
+    font-size: 13px; font-weight: 700; color: var(--muted); transition: all 0.15s;
+  }
+  .trained-btn.active { background: var(--aubergine); color: #fff; border-color: var(--aubergine); }
+  .checkin-note {
+    width: 100%; min-height: 80px; padding: 10px 14px;
+    border-radius: 10px; border: 1.5px solid var(--border);
+    font-size: 14px; resize: vertical; outline: none; color: var(--text);
+  }
+  .checkin-note:focus { border-color: var(--aubergine); }
+  .weight-input {
+    flex: 1; padding: 10px 14px; border-radius: 10px;
+    border: 1.5px solid var(--border); font-size: 15px;
+    outline: none; color: var(--text);
+  }
+  .weight-input:focus { border-color: var(--aubergine); }
+  .range-input { width: 100%; accent-color: var(--aubergine); }
+
+  /* PROGRESS */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .stat-card {
+    background: var(--card); border-radius: 16px;
+    padding: 16px 14px; border: 1px solid var(--border);
+  }
+  .stat-val { font-size: 26px; font-weight: 800; }
+  .stat-suffix { font-size: 13px; font-weight: 400; color: var(--muted); }
+  .stat-lbl { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  .bar-chart { display: flex; align-items: flex-end; gap: 4px; height: 80px; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .bar { width: 100%; border-radius: 4px 4px 0 0; transition: height 0.3s; min-height: 4px; }
+  .bar-lbl { font-size: 9px; color: var(--muted); }
+
+  .checkin-item {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 12px 16px; margin-bottom: 8px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  /* TOAST */
+  .toast {
+    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+    background: var(--green); color: #fff; padding: 10px 20px;
+    border-radius: 20px; font-size: 14px; font-weight: 700;
+    z-index: 200; opacity: 0; transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+
+  .section-label {
+    font-size: 12px; color: var(--muted); font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;
+  }
+  .page-title { font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 16px; }
+  .tip-box {
+    background: var(--gold-light); border-radius: 14px;
+    padding: 12px 16px; font-size: 13px; color: #6B4A1A;
+    font-weight: 600; margin-bottom: 20px; line-height: 1.5;
+  }
+  .recipe-box {
+    background: var(--cream); border-radius: 12px;
+    padding: 12px 14px; font-size: 13px; color: var(--text); line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div>
+      <h1>Din Coach ✨</h1>
+      <p>Styrke · Vektreduksjon · Energi</p>
+    </div>
+    <div class="header-badge">4 dager/uke</div>
+  </div>
+</div>
+
+<div class="content" id="content"></div>
+
+<nav class="nav" id="nav"></nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── SUPABASE ────────────────────────────────────────────────────
+const { createClient } = supabase;
+const sb = createClient(
+  'https://ygaypdmeinccbbddgolq.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlnYXlwZG1laW5jY2JiZGRnb2xxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0OTg4NjcsImV4cCI6MjA5ODA3NDg2N30.qn1TIvOmfj7RZrqPwmxaes7LERGgzX9yywQGamrocEs'
+);
+
+// ── AI SYSTEM PROMPT ────────────────────────────────────────────
+const SYSTEM = `Du er en personlig fitness- og kostholdcoach. Du snakker alltid norsk, er varm, direkte og motiverende.
+
+Brukerens profil:
+- Navn: Erika, 40 år, 170cm, 80kg
+- Mål: Vektreduksjon, styrketrening, generell energi og helse
+- Treningsnivå: Middels (1–3 år erfaring)
+- Trening: Treningssenter 2 dager/uke + hjemme (bands/manualer) 2 dager/uke
+- Skader: Knesmerter, skulder/nakkesmerter, ryggsmerter
+- Livssituasjon: Småbarnsmamma (barn 3+2 og 4 år), travel hverdag, lite tid
+- Kalorianbefaling: 1550–1700 kcal/dag, 128–144g protein
+
+Viktig om skader:
+- KNESMERTER: Unngå dype knebøy. Foretrekk box squat, leg press, hip thrust, step-ups.
+- SKULDER/NAKKE: Ingen overhead press. Foretrekk nøytrale grep, kabeløvelser, face pulls.
+- RYGGSMERTER: Alltid nøytral rygg. Foretrekk bird dog, dead bug, RDL med lett vekt.
+
+Hold svarene korte og konkrete. Erika har lite tid — kom til poenget raskt. Bruk emojis med måte. Aldri gi medisinsk diagnose.`;
+
+// ── DATA ────────────────────────────────────────────────────────
+const PROGRAM = [
+  {
+    day: "Dag 1 — Gym", focus: "Underkropp + glutes", emoji: "🏋️", color: "#4A2545",
+    note: "Knetilpasset: box squat istedenfor dype knebøy.",
+    exercises: [
+      { name: "Box squat", sets: "4×10", rest: "90 sek", tip: "Sitt rolig ned på boksen. Kne i linje med tær. Trygg variant for kneet." },
+      { name: "Leg press (bred fot, høyt)", sets: "3×12", rest: "75 sek", tip: "Bred fotposisjon høyt på platen = mer glutes, mindre knetrykk." },
+      { name: "Hip thrust (barbell)", sets: "4×12", rest: "60 sek", tip: "Klem glutesen i toppen, hold 1 sek. Ingen knebelastning." },
+      { name: "Romanian deadlift (lett)", sets: "3×12", rest: "75 sek", tip: "Nøytral rygg ALLTID. Senk til du kjenner hamstring, ikke lenger." },
+      { name: "Cable kickback", sets: "3×15/bein", rest: "45 sek", tip: "Kontrollert bevegelse, klem glutesen i toppen." },
+      { name: "Seated calf raise", sets: "3×15", rest: "45 sek", tip: "Full bevegelsesbane, hold i toppen 1 sek." },
+    ]
+  },
+  {
+    day: "Dag 2 — Gym", focus: "Overkropp + core", emoji: "💪", color: "#7B3F6E",
+    note: "Skulder/nakke-tilpasset: nøytrale grep, ingen overhead press.",
+    exercises: [
+      { name: "Lat pulldown (nøytralt grep)", sets: "4×10–12", rest: "75 sek", tip: "Nøytralt grep = mindre skulderbelastning. Trekk til brystet." },
+      { name: "Seated cable row", sets: "3×12", rest: "60 sek", tip: "Albuer langs siden, klem ryggmusklene. Ikke hev skuldrene." },
+      { name: "Dumbbell chest press (flat)", sets: "3×10", rest: "75 sek", tip: "Albuer 45° fra kroppen. Skuldervennlig variant." },
+      { name: "Face pull (kabel)", sets: "3×15", rest: "45 sek", tip: "Trekk mot ansiktet, albuer opp. Styrker skulderen over tid." },
+      { name: "Tricep pushdown (tau)", sets: "3×15", rest: "45 sek", tip: "Albuer inntil siden. Taugrep er skuldervennlig." },
+      { name: "Dead bug", sets: "3×10/side", rest: "45 sek", tip: "Rygg flat mot gulvet ALLTID. Trygg core-øvelse for ryggen." },
+    ]
+  },
+  {
+    day: "Dag 3 — Hjemme", focus: "Glutes & hofte (bands)", emoji: "🏠", color: "#C4964A",
+    note: "Ingen dype knebøy eller hopping. Hofte-dominante øvelser.",
+    exercises: [
+      { name: "Glute bridge med band", sets: "4×20", rest: "45 sek", tip: "Band over knærne, dytt utover. Klem glutesen i toppen, hold 2 sek." },
+      { name: "Donkey kicks (band)", sets: "3×15/bein", rest: "45 sek", tip: "Hold ryggen flat, klem glutesen i toppen. Rolig og kontrollert." },
+      { name: "Side-lying abduktion (band)", sets: "3×20/side", rest: "30 sek", tip: "Langsom og kontrollert. Kjenner i ytterside hofte." },
+      { name: "Step-up (lav stol)", sets: "3×10/bein", rest: "60 sek", tip: "Lav høyde = lite knetrykk. Skyv gjennom hælen." },
+      { name: "Sumo squat (halvdyp)", sets: "3×12", rest: "60 sek", tip: "Senk bare til det er komfortabelt for kneet." },
+      { name: "Bird dog", sets: "3×10/side", rest: "30 sek", tip: "Rygg flat, core aktivert. Strekk sakte. Bra for ryggen." },
+    ]
+  },
+  {
+    day: "Dag 4 — Hjemme", focus: "Overkropp + mobilitet", emoji: "⚡", color: "#4A7C59",
+    note: "Modifiserte push-ups, ingen overhead. Avslutt med rygg/nakke-mobilitet.",
+    exercises: [
+      { name: "Incline push-up (mot benk)", sets: "4×12", rest: "45 sek", tip: "Høyere hender = lettere for skulder og nakke." },
+      { name: "Dumbbell row (en arm)", sets: "3×12/arm", rest: "45 sek", tip: "Støtt på benken. Albue opp, trekk mot hoften." },
+      { name: "Lateral raise (lett)", sets: "3×15", rest: "45 sek", tip: "Veldig lett vekt, stopp ved skulderhøyde aldri over." },
+      { name: "Bicep curl", sets: "3×12", rest: "45 sek", tip: "Kontrollert ned er viktigere enn opp." },
+      { name: "Marsj på stedet", sets: "3×2 min", rest: "30 sek", tip: "Kne til hoftehøyde, rolig tempo. Puls opp uten belastning." },
+      { name: "Cat-cow + thoracic rotation", sets: "2×10", rest: "30 sek", tip: "Sakte gjennom hele ryggraden. Avslutning for rygg og nakke." },
+    ]
+  }
+];
+
+const MEALS = [
+  {
+    title: "Frokost", emoji: "🌅",
+    options: [
+      { name: "Proteinpannekaker", kcal: 420, p: 35, k: 38, f: 9, recipe: "2 egg + 1 banan + 1 ss proteinpulver. Mos bananen, bland alt, stek på middels varme. Server med gresk yoghurt." },
+      { name: "Havregrøt + egg", kcal: 380, p: 28, k: 45, f: 9, recipe: "60g havre kokt i vann, topp med 2 hardkokte egg, bær og kanel." },
+      { name: "Yoghurt bowl", kcal: 340, p: 30, k: 32, f: 7, recipe: "200g gresk yoghurt (10%), 1 ss peanøttsmør, granola, bær. Klar på 2 min." },
+    ]
+  },
+  {
+    title: "Lunsj", emoji: "☀️",
+    options: [
+      { name: "Kyllingwrap", kcal: 500, p: 42, k: 45, f: 11, recipe: "150g grillet kylling, fullkorns-wrap, avokado, tomat, salat, yoghurt-dressing. Meal prep 3 wraps om gangen." },
+      { name: "Laksebowl", kcal: 540, p: 38, k: 48, f: 16, recipe: "150g laks, ris, edamame, agurk, sesamfrø, soyasaus + sesamolje." },
+      { name: "Tunfisksalat", kcal: 390, p: 40, k: 18, f: 14, recipe: "1 boks tunfisk, 2 hardkokte egg, blandede blader, fetaost, olivenolje + sitron." },
+    ]
+  },
+  {
+    title: "Middag", emoji: "🌙",
+    options: [
+      { name: "Kyllinggryte", kcal: 580, p: 48, k: 50, f: 12, recipe: "2 kyllingfileter i terninger, søtpotet, paprika, løk, hermetiske tomater, spinat. Smak til med paprika og hvitløk. 25 min." },
+      { name: "Torsk + grønnsaker", kcal: 450, p: 45, k: 28, f: 10, recipe: "200g torsk i ovn 200°C i 15 min, med ovnsbakte rotgrønnsaker og tzatziki." },
+      { name: "Kjøttdeig + bønner", kcal: 520, p: 44, k: 40, f: 16, recipe: "300g kjøttdeig (5%), boks kidneybønner, hermetiske tomater, løk, hvitløk, meksikansk krydder." },
+    ]
+  },
+  {
+    title: "Snacks", emoji: "🍎",
+    options: [
+      { name: "Cottage cheese + frukt", kcal: 190, p: 22, k: 16, f: 3, recipe: "200g cottage cheese + bær eller druer. Høy protein, lavt kalorier." },
+      { name: "Knekkebrød + egg", kcal: 240, p: 18, k: 20, f: 7, recipe: "2 knekkebrød + 2 hardkokte egg + salt og pepper." },
+      { name: "Proteinshake + nøtter", kcal: 270, p: 28, k: 10, f: 11, recipe: "1 porsjon proteinpulver i vann/melk + 20g valnøtter." },
+    ]
+  }
+];
+
+// ── STATE ───────────────────────────────────────────────────────
+let currentTab = 'chat';
+let chatMessages = [];
+let chatLoading = false;
+let activeDay = 0;
+let mealSelected = [0,0,0,0];
+let checkinState = { mood: 3, energy: 3, trained: null, note: '', weight: '' };
+let checkLog = [];
+let exerciseOpen = {};
+
+// ── SUPABASE HELPERS ────────────────────────────────────────────
+async function loadCheckins() {
+  const { data } = await sb.from('checkins').select('*').order('created_at', { ascending: false }).limit(30);
+  if (data) checkLog = data;
+}
+
+async function saveCheckin(entry) {
+  const { error } = await sb.from('checkins').insert([entry]);
+  if (!error) { showToast('✓ Lagret!'); await loadCheckins(); renderCurrentTab(); }
+  else showToast('Feil ved lagring');
+}
+
+async function loadChatHistory() {
+  const { data } = await sb.from('chat_history').select('*').order('created_at', { ascending: true }).limit(50);
+  if (data) chatMessages = data.map(r => ({ role: r.role, content: r.content }));
+}
+
+async function saveChatMessage(role, content) {
+  await sb.from('chat_history').insert([{ role, content }]);
+}
+
+// ── AI ──────────────────────────────────────────────────────────
+async function sendMessage(text) {
+  if (chatLoading) return;
+  chatMessages.push({ role: 'user', content: text });
+  await saveChatMessage('user', text);
+  chatLoading = true;
+  renderChat();
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: SYSTEM,
+        messages: chatMessages.slice(-20).map(m => ({ role: m.role, content: m.content }))
+      })
+    });
+    const data = await res.json();
+    const reply = data.content?.find(b => b.type === 'text')?.text || 'Beklager, prøv igjen.';
+    chatMessages.push({ role: 'assistant', content: reply });
+    await saveChatMessage('assistant', reply);
+  } catch {
+    chatMessages.push({ role: 'assistant', content: 'Noe gikk galt. Sjekk tilkoblingen.' });
+  }
+  chatLoading = false;
+  renderChat();
+}
+
+// ── TOAST ───────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ── RENDER HELPERS ──────────────────────────────────────────────
+function h(tag, attrs, ...children) {
+  const el = document.createElement(tag);
+  if (attrs) Object.entries(attrs).forEach(([k,v]) => {
+    if (k === 'className') el.className = v;
+    else if (k === 'style') el.style.cssText = v;
+    else if (k.startsWith('on')) el[k.toLowerCase()] = v;
+    else el.setAttribute(k, v);
+  });
+  children.flat().forEach(c => {
+    if (c == null) return;
+    el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+  });
+  return el;
+}
+
+function div(cls, ...children) { return h('div', { className: cls }, ...children); }
+function span(cls, text) { return h('span', { className: cls }, text); }
+
+// ── RENDER CHAT ─────────────────────────────────────────────────
+function renderChat() {
+  const content = document.getElementById('content');
+  content.innerHTML = '';
+
+  const wrap = div('chat-wrap');
+
+  const msgs = div('chat-messages');
+
+  if (chatMessages.length === 0) {
+    const intro = div('');
+    const bubble = div('');
+    bubble.style.cssText = 'background:#4A2545;border-radius:18px;padding:20px;margin-bottom:20px;';
+    bubble.innerHTML = `<div style="font-size:15px;color:#fff;font-weight:700;margin-bottom:6px">Hei Erika! Jeg er din personlige coach 💪</div>
+    <div style="font-size:14px;color:rgba(255,255,255,0.85);line-height:1.6">Jeg kjenner målene dine, treningsprogrammet ditt og skadene dine. Spør meg om hva som helst — trening, mat, motivasjon!</div>`;
+    intro.appendChild(bubble);
+
+    const suglbl = div('section-label');
+    suglbl.textContent = 'Forslag';
+    intro.appendChild(suglbl);
+
+    ['Hva bør jeg spise etter trening?', 'Gi meg tips for dag 1 på gym', 'Jeg har lite energi i dag', 'Hva er riktig teknikk for hip thrust?', 'Lag meg en enkel middagsplan for uken'].forEach(s => {
+      const btn = h('button', { className: 'suggestion', onclick: () => sendMessage(s) }, s);
+      intro.appendChild(btn);
+    });
+    msgs.appendChild(intro);
+  }
+
+  chatMessages.forEach(m => {
+    const row = div(`msg ${m.role}`);
+    const b = div(`bubble ${m.role}`);
+    b.textContent = m.content;
+    row.appendChild(b);
+    msgs.appendChild(row);
+  });
+
+  if (chatLoading) {
+    const row = div('msg assistant');
+    const b = div('bubble assistant');
+    b.innerHTML = '<div class="typing-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
+    row.appendChild(b); msgs.appendChild(row);
+  }
+
+  wrap.appendChild(msgs);
+
+  const inputRow = div('chat-input-row');
+  const inp = h('input', { className: 'chat-input', placeholder: 'Spør coachen...', type: 'text' });
+  const sendBtn = h('button', { className: 'chat-send', onclick: () => { if (inp.value.trim()) { sendMessage(inp.value.trim()); inp.value = ''; } } }, '→');
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); } });
+  inputRow.appendChild(inp); inputRow.appendChild(sendBtn);
+  wrap.appendChild(inputRow);
+
+  content.appendChild(wrap);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// ── RENDER WORKOUT ───────────────────────────────────────────────
+function renderWorkout() {
+  const content = document.getElementById('content');
+  content.innerHTML = '';
+
+  const title = div('page-title'); title.textContent = 'Treningsprogram';
+  content.appendChild(title);
+
+  const grid = div('day-grid');
+  PROGRAM.forEach((d, i) => {
+    const btn = h('button', {
+      className: `day-btn${activeDay === i ? ' active' : ''}`,
+      style: activeDay === i ? `background:${d.color};border-color:${d.color};` : '',
+      onclick: () => { activeDay = i; renderWorkout(); }
+    },
+      h('div', { className: 'day-emoji' }, d.emoji),
+      h('div', { className: 'day-name', style: activeDay === i ? 'color:#fff' : '' }, d.day),
+      h('div', { className: 'day-focus', style: activeDay === i ? 'color:rgba(255,255,255,0.8)' : '' }, d.focus)
+    );
+    grid.appendChild(btn);
+  });
+  content.appendChild(grid);
+
+  const prog = PROGRAM[activeDay];
+  const header = div('');
+  header.style.cssText = `background:${prog.color}18;border-radius:18px;padding:16px;margin-bottom:14px;border:1px solid ${prog.color}30`;
+  header.innerHTML = `<div style="font-size:13px;font-weight:700;color:${prog.color}">${prog.emoji} ${prog.day}</div><div style="font-size:18px;font-weight:800;color:#1E1018;margin-top:2px">${prog.focus}</div>`;
+  content.appendChild(header);
+
+  if (prog.note) {
+    const warn = div('warning-box'); warn.textContent = '⚠️ ' + prog.note;
+    content.appendChild(warn);
+  }
+
+  prog.exercises.forEach((ex, i) => {
+    const key = `${activeDay}-${i}`;
+    const card = div('exercise-card');
+
+    const hdr = h('button', { className: 'exercise-header', onclick: () => { exerciseOpen[key] = !exerciseOpen[key]; renderWorkout(); } },
+      h('div', { style: 'display:flex;align-items:center;gap:12px' },
+        div('exercise-num', `${i+1}`),
+        h('div', {},
+          h('div', { className: 'exercise-name' }, ex.name),
+          h('div', { className: 'exercise-meta' }, `${ex.sets} · ${ex.rest} pause`)
+        )
+      ),
+      h('span', { style: `color:var(--muted);font-size:18px;transform:${exerciseOpen[key] ? 'rotate(180deg)' : 'none'};transition:transform 0.2s` }, '›')
+    );
+    card.appendChild(hdr);
+
+    if (exerciseOpen[key]) {
+      const tip = div('exercise-tip'); tip.textContent = '💡 ' + ex.tip;
+      card.appendChild(tip);
+    }
+    content.appendChild(card);
+  });
+
+  const infoBox = div('card');
+  infoBox.style.marginTop = '16px';
+  infoBox.innerHTML = `<div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:6px">💡 Ukesstruktur</div>
+  <div style="font-size:13px;color:var(--muted);line-height:1.6">Anbefalt: Gym dag 1 + 2 med hviledag imellom. Hjemmedagene mellom eller etter. En full hviledag i uken.</div>`;
+  content.appendChild(infoBox);
+}
+
+// ── RENDER FOOD ──────────────────────────────────────────────────
+function renderFood() {
+  const content = document.getElementById('content');
+  content.innerHTML = '';
+
+  const title = div('page-title'); title.textContent = 'Kostholdsplan';
+  content.appendChild(title);
+
+  const tip = div('tip-box');
+  tip.textContent = '🎯 Mål: 1550–1700 kcal/dag · Høy protein (128–144g) · Moderat karbo';
+  content.appendChild(tip);
+
+  MEALS.forEach((meal, mi) => {
+    const card = div('card');
+    card.style.padding = '0';
+    card.style.overflow = 'hidden';
+
+    const hdr = div('');
+    hdr.style.cssText = 'background:var(--aubergine);padding:14px 18px;display:flex;align-items:center;gap:8px';
+    hdr.innerHTML = `<span style="font-size:20px">${meal.emoji}</span><span style="font-size:15px;font-weight:800;color:#fff">${meal.title}</span>`;
+    card.appendChild(hdr);
+
+    const body = div(''); body.style.padding = '14px 16px';
+
+    const optRow = div(''); optRow.style.cssText = 'display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap';
+    meal.options.forEach((o, oi) => {
+      const btn = h('button', {
+        className: 'meal-option-btn',
+        style: `border:1.5px solid ${mealSelected[mi]===oi ? 'var(--aubergine)' : 'var(--border)'};background:${mealSelected[mi]===oi ? 'var(--aubergine)' : 'transparent'};color:${mealSelected[mi]===oi ? '#fff' : 'var(--muted)'}`,
+        onclick: () => { mealSelected[mi] = oi; renderFood(); }
+      }, o.name);
+      optRow.appendChild(btn);
+    });
+    body.appendChild(optRow);
+
+    const opt = meal.options[mealSelected[mi]];
+    const macros = div(''); macros.style.cssText = 'display:flex;gap:8px;margin-bottom:12px';
+    [[opt.kcal,'kcal','var(--gold)','var(--gold-light)'],[opt.p+'g','Protein','var(--green)','#E8F5EC'],[opt.k+'g','Karbo','var(--plum)','#F3EAF2'],[opt.f+'g','Fett','var(--muted)','var(--cream)']].forEach(([val,lbl,col,bg]) => {
+      const b = div('macro-badge'); b.style.background = bg;
+      b.innerHTML = `<div class="macro-val" style="color:${col}">${val}</div><div class="macro-lbl">${lbl}</div>`;
+      macros.appendChild(b);
+    });
+    body.appendChild(macros);
+
+    const recipe = div('recipe-box'); recipe.textContent = opt.recipe;
+    body.appendChild(recipe);
+    card.appendChild(body);
+    content.appendChild(card);
+  });
+
+  const tips = div('card');
+  tips.innerHTML = `<div class="card-title">Generelle råd</div>` +
+    ['🥛 1.6–2g protein per kilo kroppsvekt','💧 Minst 2L vann — mer på treningsdager','🥦 Halvparten av tallerkenen med grønnsaker','🍽️ Meal prep søndag sparer tid og hodebry','⏰ Siste store måltid 2–3 timer før sengetid'].map(t => `<div style="font-size:13px;color:var(--text);line-height:1.8">${t}</div>`).join('');
+  content.appendChild(tips);
+}
+
+// ── RENDER CHECKIN ───────────────────────────────────────────────
+function renderCheckin() {
+  const content = document.getElementById('content');
+  content.innerHTML = '';
+
+  const today = new Date().toLocaleDateString('nb-NO', { weekday: 'long', day: 'numeric', month: 'long' });
+  const lbl = div('section-label'); lbl.textContent = 'Dagens check-in';
+  const title = div('page-title'); title.style.textTransform = 'capitalize'; title.textContent = today;
+  content.appendChild(lbl); content.appendChild(title);
+
+  // MOOD
+  const moodCard = div('card');
+  const moodTitle = div('card-title'); moodTitle.textContent = `Hvordan har dagen vært? ${'😔😐🙂😊🔥'[checkinState.mood-1]}`;
+  moodCard.appendChild(moodTitle);
+  const moodRow = div(''); moodRow.style.cssText = 'display:flex;justify-content:space-between';
+  '😔😐🙂😊🔥'.split('').forEach((emoji, i) => {
+    const btn = h('button', {
+      className: `mood-btn${checkinState.mood === i+1 ? ' active' : ''}`,
+      onclick: () => { checkinState.mood = i+1; renderCheckin(); }
+    }, emoji);
+    moodRow.appendChild(btn);
+  });
+  moodCard.appendChild(moodRow);
+  content.appendChild(moodCard);
+
+  // ENERGY
+  const energyLabels = ['Veldig lav','Lav','Middels','God','Topp'];
+  const energyCard = div('card');
+  energyCard.innerHTML = `<div class="card-title">Energinivå: <span style="color:var(--aubergine)">${energyLabels[checkinState.energy-1]}</span></div>`;
+  const range = h('input', { type: 'range', min: '1', max: '5', value: checkinState.energy, className: 'range-input', oninput: e => { checkinState.energy = +e.target.value; energyCard.querySelector('.card-title').innerHTML = `Energinivå: <span style="color:var(--aubergine)">${energyLabels[checkinState.energy-1]}</span>`; } });
+  energyCard.appendChild(range);
+  content.appendChild(energyCard);
+
+  // TRAINED
+  const trainedCard = div('card');
+  const trainedTitle = div('card-title'); trainedTitle.textContent = 'Trente du i dag?';
+  trainedCard.appendChild(trainedTitle);
+  const trainedRow = div(''); trainedRow.style.cssText = 'display:flex;gap:10px';
+  ['Ja 💪','Nei','Hviledag 😴'].forEach(t => {
+    const btn = h('button', {
+      className: `trained-btn${checkinState.trained === t ? ' active' : ''}`,
+      onclick: () => { checkinState.trained = t; renderCheckin(); }
+    }, t);
+    trainedRow.appendChild(btn);
+  });
+  trainedCard.appendChild(trainedRow);
+  content.appendChild(trainedCard);
+
+  // WEIGHT
+  const weightCard = div('card');
+  weightCard.innerHTML = '<div class="card-title">Vekt (valgfritt)</div>';
+  const weightRow = div(''); weightRow.style.cssText = 'display:flex;align-items:center;gap:10px';
+  const weightInp = h('input', { type: 'number', step: '0.1', className: 'weight-input', placeholder: 'eks. 78.5', value: checkinState.weight, oninput: e => checkinState.weight = e.target.value });
+  weightRow.appendChild(weightInp);
+  weightRow.appendChild(h('span', { style: 'color:var(--muted);font-weight:600' }, 'kg'));
+  weightCard.appendChild(weightRow);
+  content.appendChild(weightCard);
+
+  // NOTE
+  const noteCard = div('card');
+  noteCard.innerHTML = '<div class="card-title">Notater</div>';
+  const textarea = h('textarea', { className: 'checkin-note', placeholder: 'Hva gikk bra? Hva var vanskelig? Noe du vil huske...', oninput: e => checkinState.note = e.target.value });
+  textarea.value = checkinState.note;
+  noteCard.appendChild(textarea);
+  content.appendChild(noteCard);
+
+  // SAVE
+  const saveBtn = h('button', {
+    className: 'btn-primary',
+    style: 'margin-bottom:28px',
+    onclick: async () => {
+      await saveCheckin({
+        dato: new Date().toLocaleDateString('nb-NO'),
+        humør: checkinState.mood,
+        energi: checkinState.energy,
+        trent: checkinState.trained,
+        vekt: checkinState.weight ? parseFloat(checkinState.weight) : null,
+        notat: checkinState.note
+      });
+      checkinState = { mood: 3, energy: 3, trained: null, note: '', weight: '' };
+    }
+  }, 'Lagre check-in');
+  content.appendChild(saveBtn);
+
+  // HISTORY
+  if (checkLog.length > 0) {
+    const histTitle = div(''); histTitle.style.cssText = 'font-size:14px;font-weight:800;color:var(--text);margin-bottom:12px';
+    histTitle.textContent = 'Siste check-ins';
+    content.appendChild(histTitle);
+    checkLog.slice(0,5).forEach(e => {
+      const item = div('checkin-item');
+      item.innerHTML = `<div><div style="font-size:13px;font-weight:700;color:var(--text)">${e.dato}</div>
+        <div style="font-size:12px;color:var(--muted)">${e.trent || '—'} · Energi: ${e.energi}/5</div>
+        ${e.notat ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${e.notat.slice(0,50)}${e.notat.length>50?'…':''}</div>` : ''}
+      </div><div style="font-size:24px">${'😔😐🙂😊🔥'[e.humør-1]}</div>`;
+      content.appendChild(item);
+    });
+  }
+}
+
+// ── RENDER PROGRESS ──────────────────────────────────────────────
+function renderProgress() {
+  const content = document.getElementById('content');
+  content.innerHTML = '';
+
+  const title = div('page-title'); title.textContent = 'Din progress';
+  content.appendChild(title);
+
+  const weightData = checkLog.filter(e => e.vekt).map(e => ({ dato: e.dato, v: e.vekt })).reverse();
+  const moodAvg = checkLog.length ? (checkLog.reduce((s,e) => s+e.humør, 0)/checkLog.length).toFixed(1) : null;
+  const trainedDays = checkLog.filter(e => e.trent?.startsWith('Ja')).length;
+  const diff = weightData.length > 1 ? (weightData[weightData.length-1].v - weightData[0].v).toFixed(1) : null;
+
+  const grid = div('stat-grid');
+  [
+    { lbl: 'Check-ins totalt', val: checkLog.length, suffix: 'dager', col: 'var(--aubergine)' },
+    { lbl: 'Treningsdager', val: trainedDays, suffix: 'dager', col: 'var(--green)' },
+    { lbl: 'Snitt humør', val: moodAvg || '–', suffix: '/5', col: 'var(--gold)' },
+    { lbl: 'Vektendring', val: diff ? (diff > 0 ? `+${diff}` : diff) : '–', suffix: 'kg', col: diff < 0 ? 'var(--green)' : diff > 0 ? 'var(--red)' : 'var(--muted)' },
+  ].forEach(s => {
+    const card = div('stat-card');
+    card.innerHTML = `<div class="stat-val" style="color:${s.col}">${s.val}<span class="stat-suffix">${s.suffix}</span></div><div class="stat-lbl">${s.lbl}</div>`;
+    grid.appendChild(card);
+  });
+  content.appendChild(grid);
+
+  if (weightData.length > 1) {
+    const wCard = div('card');
+    wCard.innerHTML = '<div class="card-title">Vektutvikling</div>';
+    const chart = div('bar-chart');
+    const slice = weightData.slice(-10);
+    const maxW = Math.max(...slice.map(e=>e.v));
+    const minW = Math.min(...slice.map(e=>e.v));
+    slice.forEach(e => {
+      const range = maxW - minW || 1;
+      const bh = Math.max(8, ((e.v-minW)/range)*60+8);
+      const col = div('bar-col');
+      const bar = div('bar'); bar.style.cssText = `height:${bh}px;background:var(--aubergine)`;
+      const lbl = div('bar-lbl'); lbl.textContent = e.v;
+      col.appendChild(bar); col.appendChild(lbl);
+      chart.appendChild(col);
+    });
+    wCard.appendChild(chart);
+    content.appendChild(wCard);
+  }
+
+  if (checkLog.length === 0) {
+    const empty = div(''); empty.style.cssText = 'text-align:center;padding:40px;color:var(--muted);font-size:14px';
+    empty.textContent = 'Ingen data ennå. Start med en check-in!';
+    content.appendChild(empty);
+  }
+}
+
+// ── NAV ──────────────────────────────────────────────────────────
+const TABS = [
+  { id: 'chat', label: 'Coach', icon: '💬' },
+  { id: 'workout', label: 'Trening', icon: '🏋️' },
+  { id: 'food', label: 'Kosthold', icon: '🥗' },
+  { id: 'checkin', label: 'Check-in', icon: '✅' },
+  { id: 'progress', label: 'Progress', icon: '📈' },
+];
+
+function renderNav() {
+  const nav = document.getElementById('nav');
+  nav.innerHTML = '';
+  TABS.forEach(t => {
+    const btn = h('button', {
+      className: `nav-btn${currentTab === t.id ? ' active' : ''}`,
+      onclick: () => { currentTab = t.id; renderNav(); renderCurrentTab(); }
+    },
+      h('span', { className: 'icon' }, t.icon),
+      t.label,
+      currentTab === t.id ? div('nav-dot') : null
+    );
+    nav.appendChild(btn);
+  });
+}
+
+function renderCurrentTab() {
+  if (currentTab === 'chat') renderChat();
+  else if (currentTab === 'workout') renderWorkout();
+  else if (currentTab === 'food') renderFood();
+  else if (currentTab === 'checkin') renderCheckin();
+  else if (currentTab === 'progress') renderProgress();
+}
+
+// ── INIT ─────────────────────────────────────────────────────────
+async function init() {
+  renderNav();
+  renderChat();
+  await Promise.all([loadChatHistory(), loadCheckins()]);
+  renderCurrentTab();
+}
+
+init();
+</script>
+</body>
+</html>
